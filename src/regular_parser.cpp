@@ -133,7 +133,7 @@ fa_state *finite_automation::create_state() {
 }
 
 void finite_automation::add_regular(string regular_expression) {
-  auto entry = make_shared<fa_state>(0);
+  auto entry = make_shared<fa_state>();
   auto current = entry;
 
   int index(0);
