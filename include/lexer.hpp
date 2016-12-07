@@ -1,7 +1,9 @@
 #include <cwchar>
 #include <functional>
 #include <map>
+#include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -10,41 +12,46 @@ using std::vector;
 using std::function;
 using std::pair;
 using std::map;
+using std::set;
+using std::unordered_set;
 using std::shared_ptr;
 
-constexpr int max_charset_num = 65536;
-
-typedef vector<pair<wchar_t, wchar_t>> char_match;
+typedef vector<pair<char, char>> char_match;
 
 struct fa_edge;
 struct fa_state;
 
 struct fa_state {
-  vector<fa_edge *> in_edges;
-  vector<fa_edge *> out_edges;
+  set<fa_edge *> in_edges;
+  set<fa_edge *> out_edges;
   bool isFinal;
   fa_state() = default;
 };
 
 struct fa_edge {
-  char_match match_index;
+  unordered_set<char> acceptable_chars;
   fa_state *start;
   fa_state *end;
   string regex_str;
-  fa_edge(fa_state *start, fa_state *end, string regex_str)
-      : start(start), end(end), regex_str(regex_str) {}
+  void set(fa_state *start, fa_state *end, string regex_str);
+  fa_edge(fa_state *start, fa_state *end, string regex_str);
 };
 
 class finite_automation {
-  int char_class[max_charset_num];
   vector<shared_ptr<fa_state>> statues;
   vector<shared_ptr<fa_edge>> edges;
+  fa_state *current;
 
   void split(fa_edge *edge_to_split);
-  void closure(fa_edge *closure_edge);
+  void closure(fa_edge *closure_edge, int closure_mark_index);
+  void connection(fa_edge *connect_edge, int right_start_index);
+  void parallel(fa_edge *parallel_edge, int parallel_index);
 
 public:
   void add_regular(string regular_expression);
+  void make_deterministic();
+  int test(string word);
+  void step(char input);
   fa_state *create_state();
   fa_edge *create_edge(fa_state *start, fa_state *end, string regex_str);
   finite_automation();
