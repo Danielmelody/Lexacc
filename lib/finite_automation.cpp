@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "finite_automation.hpp"
 #include <algorithm>
 #include <iostream>
 #include <list>

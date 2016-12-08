@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "finite_automation.hpp"
 #include <iostream>
 
 int main(int argc, char const *argv[]) {
