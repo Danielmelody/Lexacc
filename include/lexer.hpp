@@ -41,6 +41,7 @@ class finite_automation {
   vector<shared_ptr<fa_state>> statues;
   vector<shared_ptr<fa_edge>> edges;
   fa_state *current;
+  fa_state *entry;
 
   void split(fa_edge *edge_to_split);
   void closure(fa_edge *closure_edge, int closure_mark_index);
@@ -48,10 +49,11 @@ class finite_automation {
   void parallel(fa_edge *parallel_edge, int parallel_index);
 
 public:
+  void dfs();
   void add_regular(string regular_expression);
   void make_deterministic();
   int test(string word);
-  void step(char input);
+  string step(char input);
   fa_state *create_state();
   fa_edge *create_edge(fa_state *start, fa_state *end, string regex_str);
   finite_automation();
