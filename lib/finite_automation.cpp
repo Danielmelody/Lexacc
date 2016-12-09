@@ -28,7 +28,7 @@ vector<set<char>> priority_table = {
     },
 
     {
-        '*', '?', '+',
+        '*', '?',
     },
     {
         '(', ')',
@@ -42,17 +42,13 @@ static unordered_map<char, int> priority_refers;
 
 static char_match get_regex_range(char regex_char) {
   switch (regex_char) {
-  case L'd':
+  case 'd':
     return {
-        make_pair(L'0', L'9'),
+        make_pair('0', '9'),
     };
-  case L'l':
+  case 'l':
     return {
-        make_pair(L'a', L'z'), make_pair(L'A', L'Z'),
-    };
-  case L'w':
-    return {
-        make_pair(L'a', L'z'), make_pair(L'A', L'Z'), make_pair(L'0', L'9'),
+        make_pair('a', 'z'), make_pair('A', 'Z'),
     };
   }
   return {
@@ -61,7 +57,6 @@ static char_match get_regex_range(char regex_char) {
 }
 
 inline void mark_least(fa_edge *edge) {
-  std::cout << "least edge: " << edge->regex_str << std::endl;
   for (auto range : get_regex_range(edge->regex_str[0])) {
     for (auto ch = range.first; ch < range.second; ++ch) {
       edge->acceptable_chars.insert(ch);
@@ -99,27 +94,26 @@ inline int left_reduction(int op_index, const string &regex_str) {
   int char_count(0);
   while (left_end < op_index) {
     if (regex_str[left_end] == '(') {
-      if (char_count > 0) {
+      if (char_count > 0 && parentheses == 0) {
         break;
       }
-      char_count++;
       parentheses++;
     } else if (regex_str[left_end] == ')') {
       parentheses--;
-    } else if (parentheses == 0 &&
-               get_prioriry(regex_str[left_end]) <= get_prioriry('a')) {
-      if (get_prioriry(regex_str[left_end]) < get_prioriry('a')) {
-        break;
-      }
-      if (get_prioriry(regex_str[left_end]) == get_prioriry('a')) {
+    } else {
+      if (parentheses == 0 &&
+          get_prioriry(regex_str[left_end]) <= get_prioriry('a')) {
         if (char_count > 0) {
           break;
         }
+      }
+      if (get_prioriry(regex_str[left_end]) == get_prioriry('a')) {
         char_count++;
       }
     }
     left_end++;
   }
+  std::cout << "reduction: " << regex_str.substr(0, left_end) << std::endl;
   return left_end;
 }
 
@@ -160,27 +154,27 @@ finite_automation::finite_automation() { entry = create_state(); }
 
 int finite_automation::test(string word) {
   std::cout << "test word " << word << std::endl;
+  current = entry;
   for (auto ch : word) {
     if ("$" == step(ch)) {
       return -1;
     }
   }
-  return 0;
+  return current->final_token_code;
 }
 
 string finite_automation::step(char input) {
-  if (current->isFinal) {
-    std::cout << "reach final" << std::endl;
-    return "$";
-  }
-
   for (auto out : current->out_edges) {
     if (out->acceptable_chars.find(input) != out->acceptable_chars.end()) {
       current = out->end;
       std::cout << "input " << input << "\t|"
-                << "regex:" << out->regex_str << std::endl;
+                << "regex:" << out->regex_str << "\t| to state "
+                << out->end->final_token_code << std::endl;
       return out->regex_str;
     }
+  }
+  if (current->final_token_code != -1) {
+    std::cout << "exceeded final!" << std::endl;
   }
   return "$";
 }
@@ -197,12 +191,6 @@ void finite_automation::split(fa_edge *edge_to_split) {
 
   int last_parentheses_index(0);
   int left_end = left_reduction(length, edge_to_split->regex_str);
-
-  int min_prio(100);
-  int min_prio_index(left_end);
-  int parentheses(0);
-  std::cout << "reduction: " << edge_to_split->regex_str.substr(0, left_end)
-            << std::endl;
   if (edge_to_split->regex_str[0] == '(' &&
       edge_to_split->regex_str[left_end - 1] == ')' && left_end == length) {
     edge_to_split->regex_str = edge_to_split->regex_str.substr(1, length - 2);
@@ -217,6 +205,9 @@ void finite_automation::split(fa_edge *edge_to_split) {
 
   std::cout << "split: " << edge_to_split->regex_str.substr(left_end)
             << std::endl;
+  int min_prio(100);
+  int min_prio_index(left_end);
+  int parentheses(0);
   int right_logic_char_num(0);
   for (int i = left_end; i < length; ++i) {
     auto ch = edge_to_split->regex_str[i];
@@ -232,7 +223,7 @@ void finite_automation::split(fa_edge *edge_to_split) {
         right_logic_char_num++;
       }
     }
-    if (right_logic_char_num == 1) {
+    if (right_logic_char_num == 1 && !no_concat) {
       priority = get_prioriry('a');
     }
     if ((parentheses == 0 || right_logic_char_num == 1) &&
@@ -256,6 +247,7 @@ void finite_automation::split(fa_edge *edge_to_split) {
     parallel(edge_to_split, min_prio_index);
     break;
   case '?':
+    optional(edge_to_split, min_prio_index);
     break;
   case '*':
     closure(edge_to_split, min_prio_index);
@@ -283,6 +275,13 @@ void finite_automation::closure(fa_edge *origin, int closure_mark_index) {
   auto closure_edge = create_edge(closure_state, closure_state, sub_regex);
   std::cout << "closure result:" << closure_edge->regex_str << std::endl;
   split(closure_edge);
+}
+
+void finite_automation::optional(fa_edge *option_edge, int option_mark_index) {
+  std::cout << "optionnal:" << option_edge->regex_str << std::endl;
+  option_edge->regex_str = option_edge->regex_str.substr(0, option_mark_index);
+  create_edge(option_edge->start, option_edge->end, "");
+  split(option_edge);
 }
 
 void finite_automation::connection(fa_edge *connect_edge,
@@ -326,7 +325,11 @@ void finite_automation::dfs() {
     for (auto out_iter = current->out_edges.begin();
          out_iter != current->out_edges.end(); ++out_iter) {
       auto out = *out_iter;
-      std::cout << "dfs: " << out->regex_str << std::endl;
+      std::cout << "dfs: " << out->regex_str;
+      if (out->end->final_token_code != -1) {
+        std::cout << " reach final " << out->end->final_token_code;
+      }
+      std::cout << std::endl;
       if (states.find(out->end) == states.end()) {
         que.push_back(out->end);
         states.insert(out->end);
@@ -337,49 +340,57 @@ void finite_automation::dfs() {
 }
 
 void finite_automation::make_deterministic() {
-  list<fa_state *> que;
-  unordered_set<fa_state *> states;
-  que.push_back(entry);
-  states.insert(entry);
-  while (!que.empty()) {
-    auto current = que.front();
-    que.pop_front();
-
-    for (auto out_iter = current->out_edges.begin();
-         out_iter != current->out_edges.end();) {
-      auto out = *out_iter;
-      if (out->regex_str == "") {
-        current->out_edges.erase(out_iter);
-        out->end->in_edges.erase(out);
-        auto out_edges = out->end->out_edges;
-        for (auto new_out_edge : out_edges) {
-          new_out_edge->set(current, new_out_edge->end,
-                            new_out_edge->regex_str);
+  for (auto start : statues) {
+    // if (states_set.find(start.get()) != states_set.end()) {
+    //   continue;
+    // }
+    // bool valid(false);
+    // for (auto in_edge : start->in_edges) {
+    //   if (in_edge->regex_str.length() > 0) {
+    //     valid = true;
+    //     break;
+    //   }
+    // }
+    // if (!valid) {
+    //   break;
+    // }
+    list<fa_state *> que;
+    unordered_set<fa_state *> states;
+    que.push_back(start.get());
+    states.insert(start.get());
+    while (!que.empty()) {
+      auto current = que.front();
+      que.pop_front();
+      for (auto out_iter = current->out_edges.begin();
+           out_iter != current->out_edges.end(); out_iter++) {
+        auto out = *out_iter;
+        if (out->regex_str == "") {
+          current->final_token_code = out->end->final_token_code;
+          auto out_edges = out->end->out_edges;
+          for (auto out_out_edge : out_edges) {
+            split(create_edge(start.get(), out_out_edge->end,
+                              out_out_edge->regex_str));
+          }
+          if (states.find(out->end) == states.end()) {
+            que.push_back(out->end);
+            states.insert(out->end);
+          }
         }
-        auto in_edges = out->end->in_edges;
-        for (auto new_in_edge : in_edges) {
-          new_in_edge->set(new_in_edge->start, current, new_in_edge->regex_str);
-        }
-        out_iter = current->out_edges.begin();
-      } else {
-        out_iter++;
       }
     }
-    for (auto out_iter = current->out_edges.begin();
-         out_iter != current->out_edges.end(); ++out_iter) {
-      auto out = *out_iter;
-      if (states.find(out->end) == states.end()) {
-        que.push_back(out->end);
-        states.insert(out->end);
-      }
+  }
+  for (auto edge : edges) {
+    if (edge->regex_str == "") {
+      edge->start->out_edges.erase(edge.get());
+      edge->end->in_edges.erase(edge.get());
     }
   }
 }
 
-void finite_automation::add_regular(string regular_expression) {
+void finite_automation::add_regular(string regular_expression, int token_code) {
   auto end = create_state();
   current = entry;
-  end->isFinal = true;
+  end->final_token_code = token_code;
   auto first_edge = create_edge(entry, end, regular_expression);
   split(first_edge);
 }

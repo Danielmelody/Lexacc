@@ -24,8 +24,8 @@ struct fa_state;
 struct fa_state {
   set<fa_edge *> in_edges;
   set<fa_edge *> out_edges;
-  bool isFinal;
-  fa_state() = default;
+  int final_token_code;
+  fa_state() : final_token_code(-1) {}
 };
 
 struct fa_edge {
@@ -45,23 +45,17 @@ class finite_automation {
 
   void split(fa_edge *edge_to_split);
   void closure(fa_edge *closure_edge, int closure_mark_index);
+  void optional(fa_edge *option_edge, int option_mark_index);
   void connection(fa_edge *connect_edge, int right_start_index);
   void parallel(fa_edge *parallel_edge, int parallel_index);
 
 public:
   void dfs();
-  void add_regular(string regular_expression);
+  void add_regular(string regular_expression, int token_code);
   void make_deterministic();
   int test(string word);
   string step(char input);
   fa_state *create_state();
   fa_edge *create_edge(fa_state *start, fa_state *end, string regex_str);
   finite_automation();
-};
-
-class lexer {
-  string src;
-
-public:
-  explicit lexer(string src) : src(src) {}
 };
