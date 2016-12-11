@@ -1,5 +1,7 @@
 #include "finite_automation.hpp"
+#include "preprocess.hpp"
 #include <iostream>
+#include <string>
 
 void print_match(int status, const int expect) {
   if (status == expect) {
@@ -21,7 +23,7 @@ int main(int argc, char const *argv[]) {
   fa.add_regular("do", 8);
   fa.add_regular("while", 9);
   fa.add_regular("l(l|d)*", 10);
-  fa.add_regular("(+|-)?dd*(.dd*)?(e(+|-)?dd*)?", 20);
+  // fa.add_regular("(+|-)?dd*(.dd*)?(e(+|-)?dd*)?", 20);
   fa.add_regular("=", 21);
   fa.add_regular("+", 22);
   fa.add_regular("-", 23);
@@ -34,5 +36,11 @@ int main(int argc, char const *argv[]) {
   fa.add_regular(";", 30);
   fa.make_deterministic();
   fa.dfs();
-  print_match(fa.test(";"), 30);
+  string match_test = "while32";
+  // match_test = process_streams(match_test);
+  // std::cin >> match_test;
+  auto strs = fa.match(match_test);
+  for (auto str : strs) {
+    std::cout << str.content << std::endl;
+  }
 }

@@ -1,4 +1,5 @@
 #include "finite_automation.hpp"
+#include "token.hpp"
 #include <algorithm>
 #include <iostream>
 #include <list>
@@ -69,7 +70,7 @@ inline int get_prioriry(char ch) {
   if (iter != priority_refers.end()) {
     return iter->second;
   }
-  int priority(1); // default priority is for chars
+  int priority(1); //  default priority is for chars
   for (int i = 0; i < priority_table.size(); ++i) {
     auto op_set = priority_table[i];
     bool broken_flag(false);
@@ -138,44 +139,103 @@ void fa_edge::set(fa_state *start, fa_state *end, string regex_str) {
   this->regex_str = regex_str;
 }
 
-void build_nfa(fa_state *entry, string regular_expression) {
-  int max_prio(-1);
-  int max_prio_index(-1);
-  for (int i = 0; i < regular_expression.length(); ++i) {
-    auto priority = get_prioriry(regular_expression[i]);
-    if (priority > max_prio) {
-      max_prio = priority;
-      max_prio_index = i;
-    }
-  }
+finite_automation::finite_automation() { entry = create_state(); }
+
+void finite_automation::reset() {
+  current = entry;
+  decision_points = {};
+  decision_indice = {};
 }
 
-finite_automation::finite_automation() { entry = create_state(); }
+bool encounter_split(char ch) { return ch == ' ' || ch == '$'; }
+
+vector<token> finite_automation::match(string sentence) {
+  sentence.push_back('$');
+  input_str = sentence;
+  string token_str;
+  vector<token> results;
+  int last_token_end(0);
+  int last_token_type(-1);
+  // sentence.push_back('$');
+  bool valid(false);
+  std::cout << "match sentence " << sentence << std::endl;
+  current = entry;
+  int count(100);
+  int current_index(0);
+  while (current_index < sentence.length()) {
+    token_str.push_back(sentence[current_index]);
+    step();
+    if (last_token_type != -1) {
+      if (encounter_split(sentence[current_index])) {
+        token_str.pop_back();
+        results.push_back(token(token_str, last_token_type));
+        token_str = "";
+      }
+      last_token_end = current_index + 1;
+    }
+    last_token_type = current->final_token_code;
+    current_index++;
+  }
+  // for (int i = 0; i < sentence.length(); ++i) {
+  //   if (step() == "$") {
+  //     if (valid) {
+  //       results.push_back(token(token_str, current->final_token_code));
+  //       current = entry;
+  //     }
+  //     token_str = "";
+  //   }
+  //   valid = current->isFinal;
+  //   token_str.push_back(sentence[i]);
+  // }
+  return results;
+}
 
 int finite_automation::test(string word) {
   std::cout << "test word " << word << std::endl;
   current = entry;
-  for (auto ch : word) {
-    if ("$" == step(ch)) {
-      return -1;
-    }
+  while (current_index_in_input == word.length()) {
+    step();
   }
   return current->final_token_code;
 }
 
-string finite_automation::step(char input) {
-  for (auto out : current->out_edges) {
-    if (out->acceptable_chars.find(input) != out->acceptable_chars.end()) {
-      current = out->end;
-      std::cout << "input " << input << "\t|"
-                << "regex:" << out->regex_str << "\t| to state "
-                << out->end->final_token_code << std::endl;
-      return out->regex_str;
+string finite_automation::step() {
+  if (current_index_in_input >= input_str.length()) {
+    return "$";
+  }
+  const char input = input_str[current_index_in_input];
+  if (input == ' ') {
+    current_index_in_input++;
+    return "$";
+  }
+  if (!current->out_edges.empty()) {
+    decision_points.push(current->out_edges.begin());
+    decision_indice.push(current_index_in_input + 1);
+  }
+  while (!decision_points.empty()) {
+    current = (*decision_points.top())->start;
+    current_index_in_input = decision_indice.top();
+    for (auto iter = decision_points.top(); iter != current->out_edges.end();
+         ++iter) {
+      auto out = *iter;
+      if (out->acceptable_chars.find(input) != out->acceptable_chars.end()) {
+        decision_points.push(iter);
+        decision_indice.push(current_index_in_input + 1);
+        current = out->end;
+        std::cout << "input " << input << "\t|"
+                  << "regex:" << out->regex_str << "\t| to state "
+                  << out->end->final_token_code << std::endl;
+        current = out->end;
+        return out->regex_str;
+      }
     }
+    std::cout << "backspace to " << current_index_in_input << "\t|"
+              << "regex:" << (*decision_points.top())->regex_str
+              << "\t| from state " << current->final_token_code << std::endl;
+    decision_points.pop();
+    decision_indice.pop();
   }
-  if (current->final_token_code != -1) {
-    std::cout << "exceeded final!" << std::endl;
-  }
+  current_index_in_input++;
   return "$";
 }
 
@@ -391,6 +451,7 @@ void finite_automation::add_regular(string regular_expression, int token_code) {
   auto end = create_state();
   current = entry;
   end->final_token_code = token_code;
+  end->isFinal = true;
   auto first_edge = create_edge(entry, end, regular_expression);
   split(first_edge);
 }
