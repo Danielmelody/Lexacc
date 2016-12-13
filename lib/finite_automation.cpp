@@ -142,9 +142,12 @@ void fa_edge::set(fa_state *start, fa_state *end, string regex_str) {
 finite_automation::finite_automation() { entry = create_state(); }
 
 void finite_automation::reset() {
-  current = entry;
-  decision_points = {};
-  decision_indice = {};
+  decision_state = {};
+  decision_state.push(entry);
+  for (auto state : statues) {
+    state->decision_edges = {};
+  }
+  entry->decision_edges.push(entry->out_edges.begin());
 }
 
 bool encounter_split(char ch) { return ch == ' ' || ch == '$'; }
@@ -154,27 +157,34 @@ vector<token> finite_automation::match(string sentence) {
   input_str = sentence;
   string token_str;
   vector<token> results;
-  int last_token_end(0);
   int last_token_type(-1);
   // sentence.push_back('$');
-  bool valid(false);
   std::cout << "match sentence " << sentence << std::endl;
-  current = entry;
-  int count(100);
-  int current_index(0);
-  while (current_index < sentence.length()) {
-    token_str.push_back(sentence[current_index]);
-    step();
-    if (last_token_type != -1) {
-      if (encounter_split(sentence[current_index])) {
+  int read_index(0);
+  reset();
+  while (read_index < sentence.length()) {
+    token_str.push_back(sentence[read_index]);
+    auto step_result = step();
+    // std::cout << "step result:" << step_result << std::endl;
+    if (encounter_split(sentence[read_index]) || step_result == '$') {
+      if (last_final_state != nullptr) {
         token_str.pop_back();
-        results.push_back(token(token_str, last_token_type));
-        token_str = "";
+        results.push_back(token(token_str, last_final_state->final_token_code));
       }
-      last_token_end = current_index + 1;
+      reset();
+      token_str = "";
+      last_token_type = -1;
+      if (step_result == '$' && !encounter_split(sentence[read_index])) {
+        continue;
+      }
+      read_index++;
+      current_index_in_input++;
+      continue;
     }
-    last_token_type = current->final_token_code;
-    current_index++;
+    last_token_type =
+        decision_state.empty() ? -1 : decision_state.top()->final_token_code;
+    read_index++;
+    current_index_in_input++;
   }
   // for (int i = 0; i < sentence.length(); ++i) {
   //   if (step() == "$") {
@@ -190,53 +200,50 @@ vector<token> finite_automation::match(string sentence) {
   return results;
 }
 
-int finite_automation::test(string word) {
-  std::cout << "test word " << word << std::endl;
-  current = entry;
-  while (current_index_in_input == word.length()) {
-    step();
-  }
-  return current->final_token_code;
-}
-
-string finite_automation::step() {
-  if (current_index_in_input >= input_str.length()) {
-    return "$";
-  }
-  const char input = input_str[current_index_in_input];
-  if (input == ' ') {
-    current_index_in_input++;
-    return "$";
-  }
-  if (!current->out_edges.empty()) {
-    decision_points.push(current->out_edges.begin());
-    decision_indice.push(current_index_in_input + 1);
-  }
-  while (!decision_points.empty()) {
-    current = (*decision_points.top())->start;
-    current_index_in_input = decision_indice.top();
-    for (auto iter = decision_points.top(); iter != current->out_edges.end();
-         ++iter) {
-      auto out = *iter;
-      if (out->acceptable_chars.find(input) != out->acceptable_chars.end()) {
-        decision_points.push(iter);
-        decision_indice.push(current_index_in_input + 1);
-        current = out->end;
-        std::cout << "input " << input << "\t|"
-                  << "regex:" << out->regex_str << "\t| to state "
-                  << out->end->final_token_code << std::endl;
-        current = out->end;
-        return out->regex_str;
+char finite_automation::step() {
+  int input_index = current_index_in_input;
+  char identify = '$';
+  last_final_state = nullptr;
+  last_final_index = input_index;
+  while (!decision_state.empty() && input_index < current_index_in_input + 1) {
+    auto current = decision_state.top();
+    if (current->final_token_code != -1) {
+      if (last_final_index <= input_index) {
+        last_final_index = input_index;
+        last_final_state = current;
       }
     }
-    std::cout << "backspace to " << current_index_in_input << "\t|"
-              << "regex:" << (*decision_points.top())->regex_str
-              << "\t| from state " << current->final_token_code << std::endl;
-    decision_points.pop();
-    decision_indice.pop();
+    char ch = input_str[input_index];
+    if (current->decision_edges.top() != current->out_edges.end()) {
+      auto decision_edge = *(current->decision_edges.top());
+      current->decision_edges.top()++;
+      if (decision_edge->acceptable_chars.find(ch) !=
+          decision_edge->acceptable_chars.end()) {
+        decision_state.push(decision_edge->end);
+        decision_edge->end->decision_edges.push(
+            decision_edge->end->out_edges.begin());
+        identify = decision_edge->regex_str[0];
+        input_index++;
+      }
+    } else {
+      decision_state.top()->decision_edges.pop();
+      decision_state.pop();
+      input_index--;
+    }
   }
-  current_index_in_input++;
-  return "$";
+  if (!decision_state.empty()) {
+    std::cout << "step " << input_str.substr(0, input_index) << "\tregex "
+              << identify << "\tpush token type "
+              << decision_state.top()->final_token_code << std::endl;
+  } else {
+    identify = '$';
+  }
+  return identify;
+}
+
+void finite_automation::next() {
+  while (!decision_state.empty()) {
+  }
 }
 
 void finite_automation::split(fa_edge *edge_to_split) {
@@ -449,7 +456,6 @@ void finite_automation::make_deterministic() {
 
 void finite_automation::add_regular(string regular_expression, int token_code) {
   auto end = create_state();
-  current = entry;
   end->final_token_code = token_code;
   end->isFinal = true;
   auto first_edge = create_edge(entry, end, regular_expression);

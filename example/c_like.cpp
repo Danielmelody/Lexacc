@@ -23,7 +23,7 @@ int main(int argc, char const *argv[]) {
   fa.add_regular("do", 8);
   fa.add_regular("while", 9);
   fa.add_regular("l(l|d)*", 10);
-  // fa.add_regular("(+|-)?dd*(.dd*)?(e(+|-)?dd*)?", 20);
+  fa.add_regular("(+|-)?dd*(.dd*)?(e(+|-)?dd*)?", 20);
   fa.add_regular("=", 21);
   fa.add_regular("+", 22);
   fa.add_regular("-", 23);
@@ -34,13 +34,15 @@ int main(int argc, char const *argv[]) {
   fa.add_regular("{", 28);
   fa.add_regular("}", 29);
   fa.add_regular(";", 30);
+
   fa.make_deterministic();
   fa.dfs();
-  string match_test = "while32";
+  string match_test = "---12-12+45";
   // match_test = process_streams(match_test);
   // std::cin >> match_test;
   auto strs = fa.match(match_test);
   for (auto str : strs) {
-    std::cout << str.content << std::endl;
+    std::cout << "(" << str.content << ", " << str.state_code << ")"
+              << std::endl;
   }
 }
