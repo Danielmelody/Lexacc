@@ -58,6 +58,7 @@ class finite_automation {
 
   void reset();
   void split(fa_edge *edge_to_split);
+  void transfer(fa_edge *transfer_edge, int closure_mark_index);
   void closure(fa_edge *closure_edge, int closure_mark_index);
   void optional(fa_edge *option_edge, int option_mark_index);
   void connection(fa_edge *connect_edge, int right_start_index);

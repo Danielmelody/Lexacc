@@ -41,7 +41,13 @@ vector<set<char>> priority_table = {
 
 static unordered_map<char, int> priority_refers;
 
-static char_match get_regex_range(char regex_char) {
+static char_match get_final_regex_range(char regex_char) {
+  return {
+      make_pair(regex_char, regex_char + 1),
+  };
+}
+
+static char_match get_transfer_range(char regex_char) {
   switch (regex_char) {
   case 'd':
     return {
@@ -51,6 +57,14 @@ static char_match get_regex_range(char regex_char) {
     return {
         make_pair('a', 'z'), make_pair('A', 'Z'),
     };
+  case 'w':
+    return {
+        make_pair('a', 'z'), make_pair('A', 'Z'), make_pair('0', '1'),
+    };
+  case 's':
+    return {
+        make_pair('\t', '\t' + 1), make_pair(' ', ' ' + 1),
+    };
   }
   return {
       make_pair(regex_char, regex_char + 1),
@@ -58,7 +72,7 @@ static char_match get_regex_range(char regex_char) {
 }
 
 inline void mark_least(fa_edge *edge) {
-  for (auto range : get_regex_range(edge->regex_str[0])) {
+  for (auto range : get_final_regex_range(edge->regex_str[0])) {
     for (auto ch = range.first; ch < range.second; ++ch) {
       edge->acceptable_chars.insert(ch);
     }
@@ -102,9 +116,9 @@ inline int left_reduction(int op_index, const string &regex_str) {
     } else if (regex_str[left_end] == ')') {
       parentheses--;
     } else {
-      if (parentheses == 0 &&
-          get_prioriry(regex_str[left_end]) <= get_prioriry('a')) {
-        if (char_count > 0) {
+      if (parentheses == 0 && char_count > 0) {
+        if (get_prioriry(regex_str[left_end]) <= get_prioriry('a') ||
+            regex_str[left_end] == '\\') {
           break;
         }
       }
@@ -168,13 +182,17 @@ vector<token> finite_automation::match(string sentence) {
     // std::cout << "step result:" << step_result << std::endl;
     if (encounter_split(sentence[read_index]) || step_result == '$') {
       if (last_final_state != nullptr) {
-        token_str.pop_back();
+        int loop = read_index - last_final_index + 1;
+        while (loop--) {
+          token_str.pop_back();
+        }
         results.push_back(token(token_str, last_final_state->final_token_code));
       }
       reset();
       token_str = "";
       last_token_type = -1;
-      if (step_result == '$' && !encounter_split(sentence[read_index])) {
+      if (step_result == '$' && !encounter_split(sentence[read_index]) &&
+          last_final_state) {
         continue;
       }
       read_index++;
@@ -208,7 +226,12 @@ char finite_automation::step() {
   while (!decision_state.empty() && input_index < current_index_in_input + 1) {
     auto current = decision_state.top();
     if (current->final_token_code != -1) {
-      if (last_final_index <= input_index) {
+      if (!last_final_state) {
+        last_final_index = input_index;
+        last_final_state = current;
+      } else if ((last_final_index < input_index &&
+                  current->final_token_code <=
+                      last_final_state->final_token_code)) {
         last_final_index = input_index;
         last_final_state = current;
       }
@@ -319,6 +342,18 @@ void finite_automation::split(fa_edge *edge_to_split) {
   case '*':
     closure(edge_to_split, min_prio_index);
     break;
+  case '\\':
+    transfer(edge_to_split, min_prio_index);
+    break;
+  }
+}
+
+void finite_automation::transfer(fa_edge *transfer_edge, int transfer_index) {
+  for (auto range :
+       get_transfer_range(transfer_edge->regex_str[transfer_index + 1])) {
+    for (auto ch = range.first; ch < range.second; ++ch) {
+      transfer_edge->acceptable_chars.insert(ch);
+    }
   }
 }
 
