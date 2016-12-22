@@ -1,6 +1,7 @@
 #include "finite_automation.hpp"
 #include "token.hpp"
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <list>
 #include <set>
@@ -51,15 +52,16 @@ static char_match get_transfer_range(char regex_char) {
   switch (regex_char) {
   case 'd':
     return {
-        make_pair('0', '9'),
+        make_pair('0', '9' + 1),
     };
   case 'l':
     return {
-        make_pair('a', 'z'), make_pair('A', 'Z'),
+        make_pair('a', 'z' + 1), make_pair('A', 'Z' + 1),
     };
   case 'w':
     return {
-        make_pair('a', 'z'), make_pair('A', 'Z'), make_pair('0', '1'),
+        make_pair('a', 'z' + 1), make_pair('A', 'Z' + 1),
+        make_pair('0', '1' + 1),
     };
   case 's':
     return {
@@ -128,7 +130,7 @@ inline int left_reduction(int op_index, const string &regex_str) {
     }
     left_end++;
   }
-  std::cout << "reduction: " << regex_str.substr(0, left_end) << std::endl;
+  // std::cout << "reduction: " << regex_str.substr(0, left_end) << std::endl;
   return left_end;
 }
 
@@ -153,7 +155,10 @@ void fa_edge::set(fa_state *start, fa_state *end, string regex_str) {
   this->regex_str = regex_str;
 }
 
-finite_automation::finite_automation() { entry = create_state(); }
+finite_automation::finite_automation() {
+  token_types.push_back(token_type::error_token);
+  entry = create_state();
+}
 
 void finite_automation::reset() {
   decision_state = {};
@@ -173,9 +178,12 @@ vector<token> finite_automation::match(string sentence) {
   vector<token> results;
   int last_token_type(-1);
   // sentence.push_back('$');
-  std::cout << "match sentence " << sentence << std::endl;
+  // std::cout << "match sentence " << sentence << std::endl;
   int read_index(0);
+  int token_start_index(0);
   reset();
+  last_final_index = -1;
+  current_index_in_input = 0;
   while (read_index < sentence.length()) {
     token_str.push_back(sentence[read_index]);
     auto step_result = step();
@@ -183,13 +191,23 @@ vector<token> finite_automation::match(string sentence) {
     if (encounter_split(sentence[read_index]) || step_result == '$') {
       if (last_final_state != nullptr) {
         int loop = read_index - last_final_index + 1;
-        while (loop--) {
-          token_str.pop_back();
+        if (loop > 1) {
+          results.push_back(
+              token("error token " +
+                        input_str.substr(token_start_index,
+                                         read_index - token_start_index),
+                    token_type::error_token));
+        } else {
+          while (loop--) {
+            token_str.pop_back();
+          }
+          results.push_back(
+              token(token_str, token_types[last_final_state->type_index]));
         }
-        results.push_back(token(token_str, last_final_state->final_token_code));
       }
       reset();
       token_str = "";
+      token_start_index = read_index;
       last_token_type = -1;
       if (step_result == '$' && !encounter_split(sentence[read_index]) &&
           last_final_state) {
@@ -200,7 +218,9 @@ vector<token> finite_automation::match(string sentence) {
       continue;
     }
     last_token_type =
-        decision_state.empty() ? -1 : decision_state.top()->final_token_code;
+        decision_state.empty()
+            ? -1
+            : token_types[decision_state.top()->type_index].state_code;
     read_index++;
     current_index_in_input++;
   }
@@ -225,13 +245,13 @@ char finite_automation::step() {
   last_final_index = input_index;
   while (!decision_state.empty() && input_index < current_index_in_input + 1) {
     auto current = decision_state.top();
-    if (current->final_token_code != -1) {
+    if (token_types[current->type_index].state_code != -1) {
       if (!last_final_state) {
         last_final_index = input_index;
         last_final_state = current;
       } else if ((last_final_index < input_index &&
-                  current->final_token_code <=
-                      last_final_state->final_token_code)) {
+                  token_types[current->type_index].state_code <=
+                      token_types[last_final_state->type_index].state_code)) {
         last_final_index = input_index;
         last_final_state = current;
       }
@@ -255,9 +275,9 @@ char finite_automation::step() {
     }
   }
   if (!decision_state.empty()) {
-    std::cout << "step " << input_str.substr(0, input_index) << "\tregex "
-              << identify << "\tpush token type "
-              << decision_state.top()->final_token_code << std::endl;
+    //    std::cout << "step " << input_str.substr(0, input_index) << "\tregex "
+    //              << identify << "\tpush token type "
+    //              << decision_state.top()->final_token_code << std::endl;
   } else {
     identify = '$';
   }
@@ -293,8 +313,8 @@ void finite_automation::split(fa_edge *edge_to_split) {
     left_end = 0;
   }
 
-  std::cout << "split: " << edge_to_split->regex_str.substr(left_end)
-            << std::endl;
+  // std::cout << "split: " << edge_to_split->regex_str.substr(left_end)
+  //           << std::endl;
   int min_prio(100);
   int min_prio_index(left_end);
   int parentheses(0);
@@ -368,19 +388,19 @@ void finite_automation::parallel(fa_edge *parallel_edge, int parallel_index) {
 }
 
 void finite_automation::closure(fa_edge *origin, int closure_mark_index) {
-  std::cout << "closure:" << origin->regex_str << std::endl;
+  // std::cout << "closure:" << origin->regex_str << std::endl;
   auto sub_regex = origin->regex_str.substr(0, closure_mark_index);
   auto closure_state = create_state();
   create_edge(origin->start, closure_state, "");
   auto leave_closure = origin;
   leave_closure->set(closure_state, origin->end, "");
   auto closure_edge = create_edge(closure_state, closure_state, sub_regex);
-  std::cout << "closure result:" << closure_edge->regex_str << std::endl;
+  // std::cout << "closure result:" << closure_edge->regex_str << std::endl;
   split(closure_edge);
 }
 
 void finite_automation::optional(fa_edge *option_edge, int option_mark_index) {
-  std::cout << "optionnal:" << option_edge->regex_str << std::endl;
+  // std::cout << "optionnal:" << option_edge->regex_str << std::endl;
   option_edge->regex_str = option_edge->regex_str.substr(0, option_mark_index);
   create_edge(option_edge->start, option_edge->end, "");
   split(option_edge);
@@ -388,7 +408,7 @@ void finite_automation::optional(fa_edge *option_edge, int option_mark_index) {
 
 void finite_automation::connection(fa_edge *connect_edge,
                                    int right_start_index) {
-  std::cout << "connection: " << connect_edge->regex_str << std::endl;
+  // std::cout << "connection: " << connect_edge->regex_str << std::endl;
   auto right_regex = connect_edge->regex_str.substr(right_start_index);
   auto left_regex = connect_edge->regex_str.substr(0, right_start_index);
   auto left_state = create_state();
@@ -409,8 +429,8 @@ fa_edge *finite_automation::create_edge(fa_state *start, fa_state *end,
   return edge.get();
 }
 
-fa_state *finite_automation::create_state() {
-  auto state = make_shared<fa_state>();
+fa_state *finite_automation::create_state(int type_index) {
+  auto state = make_shared<fa_state>(type_index);
   statues.push_back(state);
   return state.get();
 }
@@ -428,8 +448,9 @@ void finite_automation::dfs() {
          out_iter != current->out_edges.end(); ++out_iter) {
       auto out = *out_iter;
       std::cout << "dfs: " << out->regex_str;
-      if (out->end->final_token_code != -1) {
-        std::cout << " reach final " << out->end->final_token_code;
+      if (token_types[out->end->type_index].state_code != -1) {
+        std::cout << " reach final "
+                  << token_types[out->end->type_index].state_code;
       }
       std::cout << std::endl;
       if (states.find(out->end) == states.end()) {
@@ -442,6 +463,8 @@ void finite_automation::dfs() {
 }
 
 void finite_automation::make_deterministic() {
+
+  std::cout << "build nfa done, convert nfa to dfa" << std::endl;
   for (auto start : statues) {
     // if (states_set.find(start.get()) != states_set.end()) {
     //   continue;
@@ -467,7 +490,9 @@ void finite_automation::make_deterministic() {
            out_iter != current->out_edges.end(); out_iter++) {
         auto out = *out_iter;
         if (out->regex_str == "") {
-          current->final_token_code = out->end->final_token_code;
+          // if (out->regex_str != "") {
+          current->type_index = out->end->type_index;
+          //}
           auto out_edges = out->end->out_edges;
           for (auto out_out_edge : out_edges) {
             split(create_edge(start.get(), out_out_edge->end,
@@ -487,12 +512,30 @@ void finite_automation::make_deterministic() {
       edge->end->in_edges.erase(edge.get());
     }
   }
+  std::cout << "build dfa done" << std::endl;
 }
 
-void finite_automation::add_regular(string regular_expression, int token_code) {
-  auto end = create_state();
-  end->final_token_code = token_code;
+void finite_automation::define_token(const token_type t) {
+  token_types.push_back(t);
+  token_types_string_map.insert({t.regex, (int)token_types.size() - 1});
+  token_types_int_map.insert({t.state_code, (int)token_types.size() - 1});
+
+  auto end = create_state((int)token_types.size() - 1);
   end->isFinal = true;
-  auto first_edge = create_edge(entry, end, regular_expression);
+
+  auto first_edge = create_edge(entry, end, t.regex);
   split(first_edge);
+}
+
+const token_type &finite_automation::get_token_type(string regex) {
+  assert(token_types_string_map.find(regex) != token_types_string_map.end());
+  return token_types[token_types_string_map.at(regex)];
+}
+
+const token_type &finite_automation::get_token_type(int state_code) {
+  if (state_code == -1) {
+    return token_type::error_token;
+  }
+  assert(token_types_int_map.find(state_code) != token_types_int_map.end());
+  return token_types[token_types_int_map.at(state_code)];
 }
