@@ -89,6 +89,7 @@ class parser_ll1 {
 
   unordered_set<symbol> symbols;
   symbol *start;
+  unordered_set<const symbol *> epsilon_closure_visited;
 
   bool epsilon_closure(const symbol &sym, const symbol &start);
 

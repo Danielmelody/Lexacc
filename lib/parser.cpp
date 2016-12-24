@@ -26,13 +26,18 @@ void parser_ll1::set_start(symbol start) {
 }
 
 bool parser_ll1::epsilon_closure(const symbol &sym, const symbol &start) {
+  if (sym == start) {
+    epsilon_closure_visited = {&start};
+  }
   auto &current = sym;
   for (auto &rule : rules[current]) {
     if (rule.empty()) {
       return true;
     } else {
       for (auto &next : rule) {
-        if (!(start == next) && !(sym == next) && !next.terminal) {
+        if (epsilon_closure_visited.find(&sym) !=
+                epsilon_closure_visited.end() &&
+            !next.terminal) {
           auto epsilon_next = epsilon_closure(next, start);
           if (epsilon_next) {
             return true;
