@@ -47,7 +47,7 @@ vector<symbol> to_symbol(const vector<token> &ts) {
 }
 
 void check(parser_ll1 &p, vector<symbol> ss) {
-  if (p.check(ss)) {
+  if (p.parse(ss)) {
     std::cout << "grammar is correct" << std::endl;
   } else {
     std::cout << "grammar is wrong" << std::endl;
@@ -130,6 +130,7 @@ int main(int argc, char const *argv[]) {
   fa.define_token(token_type("{", 28));
   fa.define_token(token_type("}", 29));
   fa.define_token(token_type(";", 30));
+  fa.define_token(token_type(",", 31));
 
   fa.make_deterministic();
   // fa.dfs();
@@ -160,9 +161,8 @@ int main(int argc, char const *argv[]) {
   symbol main_arg("main_arg");
   symbol block("block");
   symbol statement_list("statement_list");
-  symbol statement_list_right("statement_list_right");
   symbol statement("statement");
-  symbol assign_statement("statement");
+  symbol assign_statement("assign_statement");
   symbol expression("expression");
   symbol expression_right("expression_right");
   symbol item("item");
@@ -175,14 +175,16 @@ int main(int argc, char const *argv[]) {
   symbol mul(fa["*"]);
   symbol divs(fa["/"]);
   vector<symbol> empty_symbols;
-  // p.add_grammar(program << fa["main"] + fa["("] + main_arg + fa[")"] +
-  // block);
-  // p.add_grammar(main_arg << empty_symbols);
-  // p.add_grammar(block << fa["{"] + statement_list + fa["}"]);
-  // p.add_grammar(statement_list << statement + fa[";"] +
-  // statement_list_right);
-  // p.add_grammar(statement << assign_statement);
-  // p.add_grammar(assign_statement << var + fa["="] + expression);
+  p.add_grammar((program << fa["main"] + fa["("] + main_arg + fa[")"] + block)
+                    .attribute([](auto *rule) -> auto {rule[1]}));
+  p.add_grammar(main_arg << empty_symbols);
+  p.add_grammar(main_arg << fa["char"] + fa["*"] + fa["*"] + fa[10] + fa[","] +
+                                fa["int"] + fa[10]);
+  p.add_grammar(block << fa["{"] + statement_list + fa["}"]);
+  p.add_grammar(statement_list << statement + statement_list);
+  p.add_grammar(statement_list << empty_symbols);
+  p.add_grammar(statement << assign_statement);
+  p.add_grammar(assign_statement << var + fa["="] + expression + fa[";"]);
   p.add_grammar(expression << item + expression_right);
   p.add_grammar(expression_right << plus + item + expression_right);
   p.add_grammar(expression_right << sub + item + expression_right);
@@ -196,7 +198,7 @@ int main(int argc, char const *argv[]) {
   p.add_grammar(factor << fa["+"] + fa["("] + expression + fa[")"]);
   p.add_grammar(factor << var);
   p.add_grammar(factor << num);
-  p.set_start(expression);
+  p.set_start(program);
   p.build();
   auto symbol_stream = to_symbol(tokens);
   check(p, symbol_stream);

@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include "symbol.hpp"
 #include <iostream>
 #include <queue>
 #include <stack>
@@ -199,7 +200,13 @@ inline const symbol &get_next(int &read_index, const vector<symbol> &inputs) {
   return inputs[read_index - 1];
 }
 
-bool parser_ll1::check(vector<symbol> &inputs) {
+syntax_tree *parser_ll1::parse(vector<symbol> &inputs) {
+  using std::make_shared;
+  unordered_map<symbol, syntax_tree *> trees;
+
+  auto root = make_shared<syntax_tree>(*start);
+  trees.insert({*start, root.get()});
+
   inputs.push_back(symbol("$"));
   stack<symbol> analysis_stack;
   analysis_stack.push(symbol("$"));
@@ -212,32 +219,33 @@ bool parser_ll1::check(vector<symbol> &inputs) {
     if (rule.terminal) {
       if (!(current == rule)) {
         std::cerr << current.str << "should be " << rule.str << std::endl;
-        return false;
+        return nullptr;
       } else {
         read_index++;
       }
     } else {
       if (rule.str == "$") {
         if (current == rule) {
-          return true;
+          return root.get();
         } else {
-          return false;
+          return nullptr;
         }
       } else {
         if (predict_table[rule].find(current) == predict_table[rule].end()) {
           // if(analysis_stack.empty()) {
           std::cerr << current.str << "cannot be resolved by " << rule.str
                     << std::endl;
-          return false;
+          return nullptr;
           //}
         }
         auto resolve = predict_table[rule][current];
 
         for (int i = resolve.size() - 1; i >= 0; --i) {
+          trees[rule]->children.push_back(make_shared<syntax_tree>(resolve[i]));
           analysis_stack.push(resolve[i]);
         }
       }
     }
   }
-  return true;
+  return nullptr;
 }

@@ -8,6 +8,6 @@ include_directories(include)
 
 aux_source_directory(lib/ COMPILER_LIB)
 
-aux_source_directory(example/ COMPILER_EXAMPLE)
+aux_source_directory(example/c_like/ COMPILER_EXAMPLE)
 
 add_executable(compiler ${COMPILER_LIB} ${COMPILER_EXAMPLE})
