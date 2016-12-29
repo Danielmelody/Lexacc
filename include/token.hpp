@@ -19,8 +19,9 @@ struct token_type {
 };
 
 struct token {
-  const string content;
+  string content;
   const token_type &type;
+  static token empty;
   token(string content, const token_type &type)
       : content(content), type(type) {}
 };

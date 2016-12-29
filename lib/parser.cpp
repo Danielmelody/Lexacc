@@ -28,53 +28,70 @@ void parser_ll1::set_start(symbol start) {
 
 bool parser_ll1::epsilon_closure(const symbol &sym, const symbol &start) {
   if (sym == start) {
-    epsilon_closure_visited = {&start};
+    epsilon_closure_visited = {start.str};
   }
-  auto &current = sym;
-  for (auto &rule : rules[current]) {
-    if (rule.empty()) {
-      return true;
+  auto current = sym;
+  epsilon_closure_visited.insert(current.str);
+  bool has_epsilon_rule = false;
+  for (auto rule : rules[current]) {
+    if (rule.generation.empty()) {
+      has_epsilon_rule = true;
     } else {
-      for (auto &next : rule) {
-        if (epsilon_closure_visited.find(&sym) !=
-                epsilon_closure_visited.end() &&
-            !next.terminal) {
+      has_epsilon_rule = true;
+      for (auto next : rule.generation) {
+        if (epsilon_closure_visited.find(next.str) ==
+                epsilon_closure_visited.end()) {
           auto epsilon_next = epsilon_closure(next, start);
-          if (epsilon_next) {
-            return true;
+          if (!epsilon_next) {
+            has_epsilon_rule = false;
+          }
+        } else {
+          if (epsilon_symbols.find(next.str) == epsilon_symbols.end()) {
+            has_epsilon_rule = false;
           }
         }
       }
     }
   }
+  if (has_epsilon_rule) {
+    epsilon_symbols.insert(sym.str);
+    return true;
+  }
+
   return false;
 }
 
-void parser_ll1::add_grammar(pair<symbol, vector<symbol>> grammar) {
-  rules[grammar.first].push_back(grammar.second);
-  symbols.insert(grammar.first);
-  for (auto sym : grammar.second) {
+void parser_ll1::add_grammar(const syntax_rule *grammar) {
+  rules[grammar->start].push_back(*grammar);
+  symbols.insert(grammar->start);
+  for (auto sym : grammar->generation) {
     symbols.insert(sym);
   }
 }
 
+void parser_ll1::combinable(const symbol sym) { combine_symbols.insert(sym); }
+
 void parser_ll1::build() {
   for (auto rule : rules) {
-    queue<symbol> q;
+    auto non_ternimal_symbol = rule.first;
+    if (epsilon_closure(non_ternimal_symbol, non_ternimal_symbol)) {
+      auto &first_set = first[non_ternimal_symbol];
+      first_set.insert(symbol::epsilon);
+    }
+  }
+  for (auto rule : rules) {
     auto non_ternimal_symbol = rule.first;
     for (auto spreation : rule.second) {
-      for (auto s : spreation) {
+      for (auto s : spreation.generation) {
         if (s.terminal) {
           first[s].insert(s);
         }
       }
     }
     for (int i = 0; i < rule.second.size(); ++i) {
-      if (!rule.second[i].empty()) {
-        if (epsilon_closure(non_ternimal_symbol, non_ternimal_symbol)) {
-          first[non_ternimal_symbol].insert(symbol::epsilon);
-        }
-        q.push(rule.second[i][0]);
+      if (!rule.second[i].generation.empty()) {
+        queue<symbol> q;
+        q.push(rule.second[i].generation[0]);
         while (!q.empty()) {
           auto current = q.front();
           q.pop();
@@ -93,64 +110,60 @@ void parser_ll1::build() {
   setup_follow();
 
   for (auto rule : rules) {
-    auto non_ternimal_symbol = rule.first;
+    const auto non_ternimal_symbol = rule.first;
     for (auto spreation : rule.second) {
-      if (!spreation.empty()) {
-        auto first_set = first[spreation[0]];
-        for (auto f : first_set) {
-          for (auto s : spreation) {
-            auto &resolve = predict_table[non_ternimal_symbol][f];
-            resolve.push_back(s);
-          }
-        }
+      if (non_ternimal_symbol.str == "bool_expression") {
+        0;
       }
-    }
-  }
-
-  for (auto rule_set : rules) {
-    for (auto rule : rule_set.second) {
-      auto &follow_set = follow[rule_set.first];
-      if (!rule.empty()) {
-        auto &first_set = first[rule.front()];
+      if (!spreation.generation.empty()) {
+        auto first_set = first[spreation.generation[0]];
+        for (auto f : first_set) {
+          predict_table[non_ternimal_symbol].insert({f, spreation});
+        }
         if (first_set.find(symbol::epsilon) != first_set.end()) {
-          for (auto &fo : follow_set) {
-            predict_table[rule_set.first].insert({fo, rule});
+          auto follow_set = follow[non_ternimal_symbol];
+          for (auto fo : follow_set) {
+            predict_table[non_ternimal_symbol].insert({fo, spreation});
           }
         }
       } else {
-        for (auto &fo : follow_set) {
-          predict_table[rule_set.first].insert({fo, {}});
+        auto follow_set = follow[non_ternimal_symbol];
+        for (auto fo : follow_set) {
+          predict_table[non_ternimal_symbol].insert({fo, spreation});
         }
       }
     }
   }
 
-  // for (auto f_set : first) {
-  //    std::cout << "first set of " << f_set.first.str << ": ";
-  //   for (auto f : f_set.second) {
-  //     std::cout << f.str << ", ";
-  //   }
-  //   std::cout << std::endl;
-  // }
-  // for (auto f_set : follow) {
-  //    std::cout << "follow set of " << f_set.first.str << ": ";
-  //   for (auto f : f_set.second) {
-  //     std::cout << f.str << ", ";
-  //   }
-  //   std::cout << std::endl;
-  // }
+//  for (auto f_set : first) {
+//    std::cout << "first set of " << f_set.first.str << ": ";
+//    for (auto f : f_set.second) {
+//      std::cout << f.str << ", ";
+//    }
+//    std::cout << std::endl;
+//  }
+//  for (auto f_set : follow) {
+//    std::cout << "follow set of " << f_set.first.str << ": ";
+//    for (auto f : f_set.second) {
+//      std::cout << f.str << ", ";
+//    }
+//    std::cout << std::endl;
+//  }
 }
 
 void parser_ll1::setup_follow() {
   follow[*start].insert(symbol("$"));
-  setup_one_follow(*start);
+  setup_one_follow(*start, *start);
   for (auto rule_set : rules) {
     for (auto rule : rule_set.second) {
-      if (!rule.empty()) {
-        for (int i = 0; i < rule.size() - 1; ++i) {
+      if (!rule.generation.empty()) {
+        for (int i = 0; i < rule.generation.size() - 1; ++i) {
           auto &follow_by = first[rule[i + 1]];
           for (auto &fo : follow_by) {
             if (!(fo == symbol::epsilon)) {
+              if (fo.str == "}") {
+                0;
+              }
               follow[rule[i]].insert(fo);
             }
           }
@@ -160,35 +173,47 @@ void parser_ll1::setup_follow() {
   }
   for (auto rule_set : rules) {
     for (auto rule : rule_set.second) {
-      if (!rule.empty()) {
-        for (int i = 0; i < rule.size() - 1; ++i) {
-          setup_one_follow(rule[i]);
+      if (!rule.generation.empty()) {
+        for (int i = 0; i < rule.generation.size(); ++i) {
+          setup_one_follow(rule[i], rule[i]);
         }
       }
     }
   }
 }
 
-void parser_ll1::setup_one_follow(const symbol &start) {
-  if (start.terminal) {
+void parser_ll1::setup_one_follow(const symbol &start, const symbol &current) {
+  if (current.terminal) {
     return;
   }
-  auto nexts = rules[start];
+  if (start == current) {
+    follow_visited = {current.str};
+  } else {
+    follow_visited.insert(current.str);
+  }
+  auto nexts = rules[current];
+
   for (auto next : nexts) {
-    if (!next.empty()) {
-      if (!(next.back() == start)) {
-        for (auto fo : follow[start]) {
-          follow[next.back()].insert(fo);
-        }
-        setup_one_follow(next.back());
+
+    if (!next.generation.empty()) {
+      auto follow_start = follow[start];
+      for (auto fo : follow_start) {
+        follow[next.generation.back()].insert(fo);
       }
-      int last = next.size() - 1;
-      while (last >= 0 && epsilon_closure(next[last], next[last])) {
+      if (follow_visited.find(next.generation.back().str) ==
+          follow_visited.end()) {
+        setup_one_follow(start, next.generation.back());
+      }
+      int last = next.generation.size() - 1;
+      while (last > 0 && epsilon_closure(next[last], next[last])) {
         last--;
-        if (!(next[last] == start)) {
+        if (!(next[last] == current) &&
+            follow_visited.find(next[last].str) == follow_visited.end()) {
+          auto follow_start = follow[start];
           for (auto fo : follow[start]) {
             follow[next[last]].insert(fo);
           }
+          setup_one_follow(start, next[last]);
         }
       }
     }
@@ -200,20 +225,24 @@ inline const symbol &get_next(int &read_index, const vector<symbol> &inputs) {
   return inputs[read_index - 1];
 }
 
-syntax_tree *parser_ll1::parse(vector<symbol> &inputs) {
+shared_ptr<syntax_tree> parser_ll1::parse(vector<symbol> &inputs) {
   using std::make_shared;
-  unordered_map<symbol, syntax_tree *> trees;
-
-  auto root = make_shared<syntax_tree>(*start);
-  trees.insert({*start, root.get()});
 
   inputs.push_back(symbol("$"));
   stack<symbol> analysis_stack;
   analysis_stack.push(symbol("$"));
   analysis_stack.push(*start);
+
+  shared_ptr<syntax_tree> root = make_shared<syntax_tree>(*start);
+  stack<syntax_tree *> syntax_stack;
+  syntax_stack.push(nullptr);
+  syntax_stack.push(root.get());
+
   int read_index = 0;
   while (read_index < inputs.size() && !analysis_stack.empty()) {
     auto rule = analysis_stack.top();
+    auto current_syn_tree = syntax_stack.top();
+    syntax_stack.pop();
     analysis_stack.pop();
     auto &current = inputs[read_index];
     if (rule.terminal) {
@@ -221,12 +250,13 @@ syntax_tree *parser_ll1::parse(vector<symbol> &inputs) {
         std::cerr << current.str << "should be " << rule.str << std::endl;
         return nullptr;
       } else {
+        current_syn_tree->type._token.content = current._token.content;
         read_index++;
       }
     } else {
       if (rule.str == "$") {
         if (current == rule) {
-          return root.get();
+          return root;
         } else {
           return nullptr;
         }
@@ -238,10 +268,15 @@ syntax_tree *parser_ll1::parse(vector<symbol> &inputs) {
           return nullptr;
           //}
         }
-        auto resolve = predict_table[rule][current];
+        auto resolve = predict_table[rule].at(current);
+        current_syn_tree->set_resolve(resolve);
 
-        for (int i = resolve.size() - 1; i >= 0; --i) {
-          trees[rule]->children.push_back(make_shared<syntax_tree>(resolve[i]));
+        for (int i = 0; i < resolve.generation.size(); ++i) {
+          auto next_syn = make_shared<syntax_tree>(resolve[i]);
+          current_syn_tree->children.push_back(next_syn);
+        }
+        for (int i = resolve.generation.size() - 1; i >= 0; --i) {
+          syntax_stack.push(current_syn_tree->children[i].get());
           analysis_stack.push(resolve[i]);
         }
       }

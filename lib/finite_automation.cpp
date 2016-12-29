@@ -67,6 +67,10 @@ static char_match get_transfer_range(char regex_char) {
     return {
         make_pair('\t', '\t' + 1), make_pair(' ', ' ' + 1),
     };
+  case '|':
+    return {
+        make_pair('|', '|' + 1),
+    };
   }
   return {
       make_pair(regex_char, regex_char + 1),
@@ -169,7 +173,9 @@ void finite_automation::reset() {
   entry->decision_edges.push(entry->out_edges.begin());
 }
 
-bool encounter_split(char ch) { return ch == ' ' || ch == '$'; }
+bool encounter_split(char ch) {
+  return ch == ' ' || ch == '$' || ch == '\n' || ch == '\t';
+}
 
 vector<token> finite_automation::match(string sentence) {
   sentence.push_back('$');
@@ -351,7 +357,6 @@ void finite_automation::split(fa_edge *edge_to_split) {
 
   char split_rule = edge_to_split->regex_str[min_prio_index];
 
-  // TODO(Daniel): fill all ops;
   switch (split_rule) {
   case '|':
     parallel(edge_to_split, min_prio_index);

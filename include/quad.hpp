@@ -10,6 +10,8 @@ struct quad {
   string arg1;
   string arg2;
   string result;
+  quad(string op, string arg1, string arg2, string result)
+      : op(op), arg1(arg1), arg2(arg2), result(result) {}
 };
 
 #endif
