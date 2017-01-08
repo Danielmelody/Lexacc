@@ -109,13 +109,13 @@ int main(int argc, char const *argv[]) {
     }
   }
 
-  for (auto t : tokens) {
-    std::cout << t.type.state_code << ", ";
-    if (t.type.state_code == 20) {
-      printf("%e, ", utility::str_to_double(t.content));
-    }
-    std::cout << t.content << std::endl;
-  }
+  // for (auto t : tokens) {
+  //   std::cout << t.type.state_code << ", ";
+  //   if (t.type.state_code == 20) {
+  //     printf("%e, ", utility::str_to_double(t.content));
+  //   }
+  //   std::cout << t.content << std::endl;
+  // }
 
   parser_ll1 p;
   symbol program("program");

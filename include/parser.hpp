@@ -41,14 +41,15 @@ class parser_ll1 {
   unordered_set<string> non_epsilon_symbols;
   unordered_set<string> follow_visited;
 
-  context_analyzer ctr;
-
   bool epsilon_closure(const symbol &sym, const symbol &start);
   void setup_follow();
   void setup_one_follow(const symbol &start, const symbol &current);
 
+  int state;
+
 public:
   vector<quad> quads;
+  context_analyzer ctr;
   void emit(string operation, string arg1, string arg2, string result);
   void set_start(symbol start);
   void add_grammar(const syntax_rule *rule);
@@ -57,6 +58,8 @@ public:
   string code_generate(syntax_tree *root);
   void print_ir();
   std::shared_ptr<syntax_tree> parse(vector<symbol> &inputs);
+  void exit(int code);
+  parser_ll1() : state(0) {}
 };
 
 #endif

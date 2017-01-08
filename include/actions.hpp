@@ -9,8 +9,16 @@ using std::string;
 
 namespace actions {
 
-// expect order : if condition A else B
-//
+inline bool is_initialize(string sym, const context_analyzer &ctr) {
+  if (ctr.defined(sym)) {
+    if (ctr.inited(sym)) {
+      return true;
+    }
+  }
+  std::cerr << "error: uninitialized variable " << sym << std::endl;
+  return false;
+}
+
 inline string ir_next_0(parser_ll1 *p, syntax_tree *root) {
   return p->code_generate(root->get_child(0));
 }
@@ -26,7 +34,12 @@ inline string ir_next_0_1(parser_ll1 *p, syntax_tree *root) {
 }
 
 inline string ir_var(parser_ll1 *p, syntax_tree *root) {
-  return root->get_child(0)->type._token.content;
+  const auto &sym = root->get_child(0)->type._token.content;
+  if (!is_initialize(sym, p->ctr)) {
+    p->exit(-1);
+    return "error";
+  }
+  return sym;
 }
 
 inline string ir_num(parser_ll1 *p, syntax_tree *root) {
@@ -43,10 +56,18 @@ inline string ir_anti(parser_ll1 *p, syntax_tree *root) {
 inline string ir_assign(parser_ll1 *p, syntax_tree *root) {
   auto right = p->code_generate(root->get_child(1));
   auto left = p->code_generate(root->get_child(0));
+  // TODO(Daniel) make declaration first
+  //  if (p->ctr.get(left)) {
+  //    std::cerr << "redefine of" << left << std::end;
+  //    return "error";
+  //  }
+  p->ctr.define(left, "double");
+  p->ctr.init(left);
   p->emit("=", right, "", left);
   return left;
 }
 
+/* expect order : if condition A else B */
 inline string ir_if(parser_ll1 *p, syntax_tree *root) {
   auto condition = p->code_generate(root->get_child(0));
   p->emit("if", condition, "goto", std::to_string(p->quads.size() + 2));

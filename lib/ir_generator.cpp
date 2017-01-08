@@ -4,6 +4,7 @@
 #include <string>
 
 using std::cout;
+using std::cerr;
 using std::endl;
 
 void parser_ll1::emit(string operation, string arg1, string arg2,
@@ -28,14 +29,7 @@ string parser_ll1::code_generate(syntax_tree *root) {
     }
     ++iter;
   }
-  // std::cout << root->type.str << std::endl;
-  if (root->type.str == "==") {
-    0;
-  }
-  //  for (auto c : root->children) {
-  //    std::cout << c->type.str << ", ";
-  //  }
-  //  std::cout << std::endl;
+
   if (root->action) {
     return root->action(this, root);
   } else {
@@ -44,6 +38,7 @@ string parser_ll1::code_generate(syntax_tree *root) {
     }
     auto lhs = code_generate(root->get_child(0));
     auto rhs = code_generate(root->get_child(1));
+
     auto result = ctr.temp();
     if (root->type.terminal) {
       return root->type._token.content;
@@ -53,9 +48,6 @@ string parser_ll1::code_generate(syntax_tree *root) {
       emit(op->type._token.content, lhs, rhs, result);
     } else {
       auto op = root->type._token.content;
-      if (op == "") {
-        0;
-      }
       if (op != "") {
         emit(op, lhs, rhs, result);
       }
@@ -65,7 +57,9 @@ string parser_ll1::code_generate(syntax_tree *root) {
 }
 
 void parser_ll1::print_ir() {
-
+  if (state) {
+    return;
+  }
   for (int i = 0; i < quads.size(); ++i) {
     cout << i << " " << quads[i].op << ", " << quads[i].arg1 << ", "
          << quads[i].arg2 << ", " << quads[i].result << endl;

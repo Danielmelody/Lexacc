@@ -40,7 +40,7 @@ bool parser_ll1::epsilon_closure(const symbol &sym, const symbol &start) {
       has_epsilon_rule = true;
       for (auto next : rule.generation) {
         if (epsilon_closure_visited.find(next.str) ==
-                epsilon_closure_visited.end()) {
+            epsilon_closure_visited.end()) {
           auto epsilon_next = epsilon_closure(next, start);
           if (!epsilon_next) {
             has_epsilon_rule = false;
@@ -135,20 +135,20 @@ void parser_ll1::build() {
     }
   }
 
-//  for (auto f_set : first) {
-//    std::cout << "first set of " << f_set.first.str << ": ";
-//    for (auto f : f_set.second) {
-//      std::cout << f.str << ", ";
-//    }
-//    std::cout << std::endl;
-//  }
-//  for (auto f_set : follow) {
-//    std::cout << "follow set of " << f_set.first.str << ": ";
-//    for (auto f : f_set.second) {
-//      std::cout << f.str << ", ";
-//    }
-//    std::cout << std::endl;
-//  }
+  //  for (auto f_set : first) {
+  //    std::cout << "first set of " << f_set.first.str << ": ";
+  //    for (auto f : f_set.second) {
+  //      std::cout << f.str << ", ";
+  //    }
+  //    std::cout << std::endl;
+  //  }
+  //  for (auto f_set : follow) {
+  //    std::cout << "follow set of " << f_set.first.str << ": ";
+  //    for (auto f : f_set.second) {
+  //      std::cout << f.str << ", ";
+  //    }
+  //    std::cout << std::endl;
+  //  }
 }
 
 void parser_ll1::setup_follow() {
@@ -283,4 +283,9 @@ shared_ptr<syntax_tree> parser_ll1::parse(vector<symbol> &inputs) {
     }
   }
   return nullptr;
+}
+
+void parser_ll1::exit(int code) {
+  assert(code);
+  state = code;
 }
