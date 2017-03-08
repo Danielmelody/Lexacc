@@ -1,6 +1,5 @@
 #include "context_analyzer.hpp"
 #include <cassert>
-#include <string>
 
 const sym_information *context_analyzer::get(string sym) const {
   auto current = l_values.begin();
