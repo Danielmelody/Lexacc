@@ -51,7 +51,7 @@ struct fa_edge {
 };
 
 class finite_automation {
-  vector<const token_type> token_types;
+  vector<token_type> token_types;
   unordered_map<int, int> token_types_int_map;
   unordered_map<string, int> token_types_string_map;
   vector<shared_ptr<fa_state>> statues;
