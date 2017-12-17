@@ -70,7 +70,7 @@ int main(int argc, char const *argv[]) {
   fa.define_token(token_type("do", 8));
   fa.define_token(token_type("while", 9));
   fa.define_token(token_type("\\l(\\l|\\d)*", 10));
-  fa.define_token(token_type("(+|-)?\\d\\d*(.\\d\\d*)?(e(+|-)?\\d\\d*)?", 20));
+  fa.define_token(token_type("\\d\\d*(.\\d\\d*)?(e(+|-)?\\d\\d*)?", 20));
   fa.define_token(token_type("+", 22));
   fa.define_token(token_type("-", 23));
   fa.define_token(token_type("*", 24));
@@ -134,6 +134,8 @@ int main(int argc, char const *argv[]) {
   symbol item("item");
   symbol item_right("item_right");
   symbol factor("factor");
+  symbol signable("signable");
+  symbol numorvar("numorvar");
   symbol var(fa[10]);
   symbol num(fa[20]);
   symbol plus(fa["+"]);
@@ -216,10 +218,13 @@ int main(int argc, char const *argv[]) {
   p.add_grammar(item_right << divs + factor + item_right);
   p.add_grammar(item_right << empty_symbols);
   p.add_grammar(factor << fa["("] + expression + fa[")"]);
-  p.add_grammar(factor << fa["-"] + fa["("] + expression + fa[")"]);
-  p.add_grammar(factor << fa["+"] + fa["("] + expression + fa[")"]);
-  p.add_grammar((factor << var)->act(actions::ir_var));
-  p.add_grammar((factor << num)->act(actions::ir_num));
+  p.add_grammar((factor << fa["-"] + signable)->attribute({0, 1})->act(actions::ir_sign_expr));
+  p.add_grammar((factor << fa["+"] + signable)->attribute({0, 1})->act(actions::ir_sign_expr));
+  p.add_grammar(factor << numorvar);
+  p.add_grammar(signable << fa["("] + expression + fa[")"]);
+  p.add_grammar(signable << numorvar);
+  p.add_grammar((numorvar << var)->act(actions::ir_var));
+  p.add_grammar((numorvar << num)->act(actions::ir_num));
 
   p.add_grammar((while_statement << fa["while"] + fa["("] + bool_expression +
                                         fa[")"] + symbol("branch"))

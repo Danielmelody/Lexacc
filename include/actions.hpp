@@ -43,7 +43,6 @@ inline string ir_var(parser_ll1 *p, syntax_tree *root) {
 }
 
 inline string ir_num(parser_ll1 *p, syntax_tree *root) {
-  // auto d = utility::str_to_double(root->get_child(0)->type._token.content);
   return root->get_child(0)->type._token.content;
 }
 
@@ -65,6 +64,23 @@ inline string ir_assign(parser_ll1 *p, syntax_tree *root) {
   p->ctr.init(left);
   p->emit("=", right, "", left);
   return left;
+}
+
+inline string ir_sign_expr(parser_ll1 *p, syntax_tree *root) {
+  auto op = p->code_generate(root->get_child(0));
+  auto signable = p->code_generate(root->get_child(1));
+  auto result = p->ctr.temp();
+  p->emit(op, "0", signable, result);
+  return result;
+}
+
+inline string ir_sign_num(parser_ll1 *p, syntax_tree *root) {
+  double d = utility::str_to_double(root->get_child(0)->type._token.content);
+  auto op = p->code_generate(root->get_child(2));
+  if (op == "-") d = -d;
+  char buffer[50];
+  sprintf(buffer, "%lf", d);
+  return string(buffer);
 }
 
 /* expect order : if condition A else B */

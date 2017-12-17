@@ -112,9 +112,6 @@ void parser_ll1::build() {
   for (auto rule : rules) {
     const auto non_ternimal_symbol = rule.first;
     for (auto spreation : rule.second) {
-      if (non_ternimal_symbol.str == "bool_expression") {
-        0;
-      }
       if (!spreation.generation.empty()) {
         auto first_set = first[spreation.generation[0]];
         for (auto f : first_set) {
@@ -161,9 +158,6 @@ void parser_ll1::setup_follow() {
           auto &follow_by = first[rule[i + 1]];
           for (auto &fo : follow_by) {
             if (!(fo == symbol::epsilon)) {
-              if (fo.str == "}") {
-                0;
-              }
               follow[rule[i]].insert(fo);
             }
           }
@@ -247,7 +241,7 @@ shared_ptr<syntax_tree> parser_ll1::parse(vector<symbol> &inputs) {
     auto &current = inputs[read_index];
     if (rule.terminal) {
       if (!(current == rule)) {
-        std::cerr << current.str << "should be " << rule.str << std::endl;
+        std::cerr << current.str << "  " << current._token.content  << " should be " << rule.str << std::endl;
         return nullptr;
       } else {
         current_syn_tree->type._token.content = current._token.content;
